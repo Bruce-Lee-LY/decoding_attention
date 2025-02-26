@@ -70,19 +70,27 @@
         }                                    \
     }()
 
-#define DA_HEADDIM_SWITCH(_var_, ...)               \
-    [&] {                                           \
-        if (_var_ == 64) {                          \
-            constexpr static size_t head_dim = 64;  \
-            return __VA_ARGS__();                   \
-        } else if (_var_ == 96) {                   \
-            constexpr static size_t head_dim = 96;  \
-            return __VA_ARGS__();                   \
-        } else if (_var_ == 128) {                  \
-            constexpr static size_t head_dim = 128; \
-            return __VA_ARGS__();                   \
-        } else if (_var_ == 256) {                  \
-            constexpr static size_t head_dim = 256; \
-            return __VA_ARGS__();                   \
-        }                                           \
+#define DA_HEADDIM_SWITCH(d, d_v, ...)                \
+    [&] {                                             \
+        if (d == 64 && d_v == 64) {                   \
+            constexpr static size_t head_dim = 64;    \
+            constexpr static size_t head_dim_v = 64;  \
+            return __VA_ARGS__();                     \
+        } else if (d == 96 && d_v == 96) {            \
+            constexpr static size_t head_dim = 96;    \
+            constexpr static size_t head_dim_v = 96;  \
+            return __VA_ARGS__();                     \
+        } else if (d == 128 && d_v == 128) {          \
+            constexpr static size_t head_dim = 128;   \
+            constexpr static size_t head_dim_v = 128; \
+            return __VA_ARGS__();                     \
+        } else if (d == 256 && d_v == 256) {          \
+            constexpr static size_t head_dim = 256;   \
+            constexpr static size_t head_dim_v = 256; \
+            return __VA_ARGS__();                     \
+        } else if (d == 576 && d_v == 512) {          \
+            constexpr static size_t head_dim = 576;   \
+            constexpr static size_t head_dim_v = 512; \
+            return __VA_ARGS__();                     \
+        }                                             \
     }()

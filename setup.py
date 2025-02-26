@@ -65,11 +65,15 @@ cc_flag.append("-gencode")
 cc_flag.append("arch=compute_80,code=sm_80")
 cc_flag.append("-gencode")
 cc_flag.append("arch=compute_86,code=sm_86")
+cc_flag.append("-gencode")
+cc_flag.append("arch=compute_89,code=sm_89")
+cc_flag.append("-gencode")
+cc_flag.append("arch=compute_90,code=sm_90")
 
 # HACK: The compiler flag -D_GLIBCXX_USE_CXX11_ABI is set to be the same as
 # torch._C._GLIBCXX_USE_CXX11_ABI
 # https://github.com/pytorch/pytorch/blob/8472c24e3b5b60150096486616d98b7bea01500b/torch/utils/cpp_extension.py#L920
-torch._C._GLIBCXX_USE_CXX11_ABI = True
+torch._C._GLIBCXX_USE_CXX11_ABI = False
 
 ext_modules = []
 ext_modules.append(
@@ -78,10 +82,11 @@ ext_modules.append(
         sources=[
             "csrc/torch/decoding_torch.cpp",
             "csrc/ops/decoding_attn.cpp",
-            "csrc/kernel/decoding_attn/decoding_fwd_hdim64.cu",
-            "csrc/kernel/decoding_attn/decoding_fwd_hdim96.cu",
-            "csrc/kernel/decoding_attn/decoding_fwd_hdim128.cu",
-            "csrc/kernel/decoding_attn/decoding_fwd_hdim256.cu",
+            "csrc/kernel/decoding_attn/decoding_fwd_hd64_hdv64.cu",
+            "csrc/kernel/decoding_attn/decoding_fwd_hd96_hdv96.cu",
+            "csrc/kernel/decoding_attn/decoding_fwd_hd128_hdv128.cu",
+            "csrc/kernel/decoding_attn/decoding_fwd_hd256_hdv256.cu",
+            "csrc/kernel/decoding_attn/decoding_fwd_hd576_hdv512.cu",
         ],
         extra_compile_args={
             "cxx": ["-O3", "-std=c++17"] + generator_flag,

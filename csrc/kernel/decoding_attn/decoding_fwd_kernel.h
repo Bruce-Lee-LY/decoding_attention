@@ -17,7 +17,7 @@ __global__ void dmha_fwd_kernel(const DecodingParams params) {
         return;
     }
 
-    constexpr size_t head_dim = KernelTraits::head_dim;
+    constexpr size_t head_dim_v = KernelTraits::head_dim_v;
     constexpr size_t threads_per_block = KernelTraits::threads_per_block;
     constexpr size_t threads_per_group = KernelTraits::threads_per_group;
 
@@ -29,8 +29,11 @@ __global__ void dmha_fwd_kernel(const DecodingParams params) {
 
     constexpr size_t thread_copy_elem_nums = KernelTraits::thread_copy_elem_nums;
 
-    constexpr size_t thread_elem_nums = KernelTraits::thread_elem_nums;
-    constexpr size_t thread_iters = KernelTraits::thread_iters;
+    constexpr size_t thread_qk_nums = KernelTraits::thread_qk_nums;
+    constexpr size_t thread_copy_qk_iters = KernelTraits::thread_copy_qk_iters;
+
+    constexpr size_t thread_vo_nums = KernelTraits::thread_vo_nums;
+    constexpr size_t thread_copy_vo_iters = KernelTraits::thread_copy_vo_iters;
 
     constexpr unsigned int shfl_mask = KernelTraits::shfl_mask;
 
@@ -45,10 +48,10 @@ __global__ void dmha_fwd_kernel(const DecodingParams params) {
     T *o_ptr = reinterpret_cast<T *>(params.o_ptr);
 
     // S = Q * K^T
-    T RQ[thread_elem_nums];
+    T RQ[thread_qk_nums];
 
 #pragma unroll
-    for (size_t i = 0; i < thread_iters; ++i) {
+    for (size_t i = 0; i < thread_copy_qk_iters; ++i) {
         *(int4 *)(&RQ[i * thread_copy_elem_nums]) =
             *(int4 *)(&q_ptr[binfo.q_offset(params.q_row_stride, params.q_head_stride,
                                             (i * threads_per_group + group_lane_id) * thread_copy_elem_nums)]);
@@ -61,19 +64,19 @@ __global__ void dmha_fwd_kernel(const DecodingParams params) {
     for (size_t base_seq_k = warp_id * groups_per_warp; base_seq_k < binfo.actual_seq_k;
          base_seq_k += groups_per_block) {
         size_t seq_k = base_seq_k + group_id;
-        T RK[thread_elem_nums];
+        T RK[thread_qk_nums];
 
         float acc = 0.0;
         if (seq_k < binfo.actual_seq_k) {
 #pragma unroll
-            for (size_t i = 0; i < thread_iters; ++i) {
+            for (size_t i = 0; i < thread_copy_qk_iters; ++i) {
                 *(int4 *)(&RK[i * thread_copy_elem_nums]) =
                     *(int4 *)(&k_ptr[binfo.k_offset(seq_k, params.k_row_stride, params.k_head_stride,
                                                     (i * threads_per_group + group_lane_id) * thread_copy_elem_nums)]);
             }
 
 #pragma unroll
-            for (size_t i = 0; i < thread_elem_nums; ++i) {
+            for (size_t i = 0; i < thread_qk_nums; ++i) {
                 if constexpr (std::is_same_v<T, half>) {
                     acc += (__half2float(RQ[i]) * __half2float(RK[i]));
                 } else {
@@ -90,7 +93,7 @@ __global__ void dmha_fwd_kernel(const DecodingParams params) {
         if (group_lane_id == 0 && seq_k < binfo.actual_seq_k) {
             acc *= params.scale_softmax;
 
-            if (IsAlibi) {
+            if constexpr (IsAlibi) {
                 acc += (binfo.h_slope * (static_cast<int>(seq_k) - binfo.actual_seq_q - binfo.row_shift));
             }
 
@@ -163,8 +166,8 @@ __global__ void dmha_fwd_kernel(const DecodingParams params) {
     __syncthreads();
 
     // O = P * V
-    T RV[thread_elem_nums];
-    float RO[thread_elem_nums];
+    T RV[thread_vo_nums];
+    float RO[thread_vo_nums];
 
     memset(RO, 0, sizeof(RO));
 
@@ -175,14 +178,14 @@ __global__ void dmha_fwd_kernel(const DecodingParams params) {
 
         if (seq_k < binfo.actual_seq_k) {
 #pragma unroll
-            for (size_t i = 0; i < thread_iters; ++i) {
+            for (size_t i = 0; i < thread_copy_vo_iters; ++i) {
                 *(int4 *)(&RV[i * thread_copy_elem_nums]) =
                     *(int4 *)(&v_ptr[binfo.k_offset(seq_k, params.v_row_stride, params.v_head_stride,
                                                     (i * threads_per_group + group_lane_id) * thread_copy_elem_nums)]);
             }
 
 #pragma unroll
-            for (size_t i = 0; i < thread_elem_nums; ++i) {
+            for (size_t i = 0; i < thread_vo_nums; ++i) {
                 if constexpr (std::is_same_v<T, half>) {
                     RO[i] += (S_smem[seq_k] * __half2float(RV[i]));
                 } else {
@@ -193,7 +196,7 @@ __global__ void dmha_fwd_kernel(const DecodingParams params) {
     }
 
 #pragma unroll
-    for (size_t i = 0; i < thread_elem_nums; ++i) {
+    for (size_t i = 0; i < thread_vo_nums; ++i) {
 #pragma unroll
         for (size_t j = threads_per_group; j <= warp_size / 2; j *= 2) {
             RO[i] += __shfl_xor_sync(shfl_mask, RO[i], j);
@@ -203,7 +206,7 @@ __global__ void dmha_fwd_kernel(const DecodingParams params) {
     __syncthreads();
 
 #pragma unroll
-    for (size_t i = threadIdx.x; i < head_dim; i += threads_per_block) {
+    for (size_t i = threadIdx.x; i < head_dim_v; i += threads_per_block) {
         S_smem[i] = 0.0;
     }
 
@@ -211,7 +214,7 @@ __global__ void dmha_fwd_kernel(const DecodingParams params) {
 
     if (lane_id < threads_per_group) {
 #pragma unroll
-        for (size_t i = 0; i < thread_iters; ++i) {
+        for (size_t i = 0; i < thread_copy_vo_iters; ++i) {
 #pragma unroll
             for (size_t j = 0; j < thread_copy_elem_nums; ++j) {
                 atomicAdd(S_smem + (i * threads_per_group + lane_id) * thread_copy_elem_nums + j,
@@ -223,7 +226,7 @@ __global__ void dmha_fwd_kernel(const DecodingParams params) {
     __syncthreads();
 
 #pragma unroll
-    for (size_t i = threadIdx.x; i < head_dim; i += threads_per_block) {
+    for (size_t i = threadIdx.x; i < head_dim_v; i += threads_per_block) {
         if constexpr (std::is_same_v<T, half>) {
             o_ptr[binfo.q_offset(params.o_row_stride, params.o_head_stride, i)] = __float2half(S_smem[i]);
         } else {

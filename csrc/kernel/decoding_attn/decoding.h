@@ -36,7 +36,7 @@ struct DecodingParams {
     size_t o_head_stride;
 
     // The dimensions.
-    int b, seq_k, d;
+    int b, max_seq_k, d, d_v;
 
     // The scaling factors for the kernel.
     float scale_softmax;
@@ -50,5 +50,5 @@ struct DecodingParams {
     cudaStream_t stream;
 };
 
-template <typename T, size_t HeadDim>
+template <typename T, size_t HeadDim, size_t HeadDimV>
 void run_dmha_fwd_(const DecodingParams &params);

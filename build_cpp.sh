@@ -12,7 +12,7 @@ echo "========== build enter =========="
 
 WORK_PATH=$(cd $(dirname $0) && pwd) && cd $WORK_PATH
 
-CUDA_ARCHITECTURE=86 # a: (NVIDIA A100: 80, RTX3080Ti / RTX3090 / RTX A6000: 86)
+CUDA_ARCHITECTURE=86 # a: (NVIDIA A100: 80, RTX3080Ti / RTX3090 / RTX A6000: 86, L20 / L40S: 89, H20 / H800: 90)
 BUILD_TYPE=Release # t: (Debug, Release)
 VERBOSE_MAKEFILE=OFF # b: (ON, OFF)
 
