@@ -86,6 +86,7 @@ def analyze_data(data, dim_idx, data_path, data_type, x_label):
     dims.sort()
 
     throughputs = np.zeros((len(methods), len(dims)), np.float64)
+    bandwidths = np.zeros((len(methods), len(dims)), np.float64)
     for it in data:
         iterms = it.split(' ')
         method = iterms[0]
@@ -95,8 +96,14 @@ def analyze_data(data, dim_idx, data_path, data_type, x_label):
         throughputs[methods.index(
             method)][dims.index(dim)] = float(iterms[7])
 
+        bandwidths[methods.index(
+            method)][dims.index(dim)] = float(iterms[10])
+
     draw_line_chart(methods, dims, throughputs, data_path + data_type +
-                    '_throughput.png', 1, x_label, 'Throughput / TFLOPS', 'Decoding Attention Throughput')
+                    '_throughput.png', 20, x_label, 'Throughput / TFLOPS', 'Decoding Attention Throughput')
+
+    draw_line_chart(methods, dims, bandwidths, data_path + data_type +
+                    '_bandwidth.png', 100, x_label, 'Bandwidth / GB/s', 'Decoding Attention Bandwidth')
 
 
 def main():
