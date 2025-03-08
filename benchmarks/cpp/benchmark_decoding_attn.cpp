@@ -15,6 +15,7 @@ DEFINE_uint32(sk, 256, "kv seq len");
 DEFINE_uint32(hq, 32, "q head num");
 DEFINE_uint32(hk, 32, "kv head num");
 DEFINE_uint32(d, 128, "head dim");
+DEFINE_uint32(dv, 128, "head dim v");
 DEFINE_bool(is_causal, false, "causal mask");
 DEFINE_bool(is_alibi, false, "enable alibi");
 DEFINE_bool(is_bf16, false, "data type of q, k, v and o");
@@ -27,10 +28,10 @@ DEFINE_uint32(gpu_rank, 0, "the used GPU rank");
 
 template <typename T>
 void test_decoding_attn(size_t batch = 2, size_t seq_q = 1, size_t seq_k = 256, size_t head_q = 32, size_t head_k = 32,
-                        size_t dim = 128, bool is_causal = false, bool is_alibi = false, cudaStream_t stream = nullptr,
-                        size_t warmup_iterations = 1, size_t profiling_iterations = 10, size_t sleep_duration = 100,
-                        bool enable_check = false) {
-    Tester<T> tester(batch, seq_q, seq_k, head_q, head_k, dim, is_causal, is_alibi, stream, warmup_iterations,
+                        size_t dim = 128, size_t dim_v = 128, bool is_causal = false, bool is_alibi = false,
+                        cudaStream_t stream = nullptr, size_t warmup_iterations = 1, size_t profiling_iterations = 10,
+                        size_t sleep_duration = 100, bool enable_check = false) {
+    Tester<T> tester(batch, seq_q, seq_k, head_q, head_k, dim, dim_v, is_causal, is_alibi, stream, warmup_iterations,
                      profiling_iterations, sleep_duration, enable_check);
     tester.evaluate(decoding_attn, "Decoding-Attention");
 }
@@ -87,7 +88,7 @@ int main(int argc, char *argv[]) {
         "DMHA: Softmax (Q (%u x %u x %u x %u) * K^T (%u x %u x %u x %u)) * V (%u x %u x %u x %u) = O (%u x %u x %u x "
         "%u)",
         FLAGS_b, FLAGS_sq, FLAGS_hq, FLAGS_d, FLAGS_b, FLAGS_sk, FLAGS_hk, FLAGS_d, FLAGS_b, FLAGS_sk, FLAGS_hk,
-        FLAGS_d, FLAGS_b, FLAGS_sq, FLAGS_hq, FLAGS_d);
+        FLAGS_dv, FLAGS_b, FLAGS_sq, FLAGS_hq, FLAGS_dv);
     DLOG(
         "Profiling: is causal: %d, stream: %p, is alibi: %d, is bf16: %d, warmup iterations: %u, profiling iterations: "
         "%u, sleep duration: %u ms, enable check: %d",
@@ -95,11 +96,11 @@ int main(int argc, char *argv[]) {
         FLAGS_sleep_duration, FLAGS_enable_check);
 
     if (FLAGS_is_bf16) {
-        test_decoding_attn<__nv_bfloat16>(FLAGS_b, FLAGS_sq, FLAGS_sk, FLAGS_hq, FLAGS_hk, FLAGS_d, FLAGS_is_causal,
-                                          FLAGS_is_alibi, stream, FLAGS_warmup_iterations, FLAGS_profiling_iterations,
-                                          FLAGS_sleep_duration, FLAGS_enable_check);
+        test_decoding_attn<__nv_bfloat16>(FLAGS_b, FLAGS_sq, FLAGS_sk, FLAGS_hq, FLAGS_hk, FLAGS_d, FLAGS_dv,
+                                          FLAGS_is_causal, FLAGS_is_alibi, stream, FLAGS_warmup_iterations,
+                                          FLAGS_profiling_iterations, FLAGS_sleep_duration, FLAGS_enable_check);
     } else {
-        test_decoding_attn<half>(FLAGS_b, FLAGS_sq, FLAGS_sk, FLAGS_hq, FLAGS_hk, FLAGS_d, FLAGS_is_causal,
+        test_decoding_attn<half>(FLAGS_b, FLAGS_sq, FLAGS_sk, FLAGS_hq, FLAGS_hk, FLAGS_d, FLAGS_dv, FLAGS_is_causal,
                                  FLAGS_is_alibi, stream, FLAGS_warmup_iterations, FLAGS_profiling_iterations,
                                  FLAGS_sleep_duration, FLAGS_enable_check);
     }

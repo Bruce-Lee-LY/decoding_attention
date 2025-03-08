@@ -24,6 +24,7 @@ temp/
 
 dist/
 *.egg-info/
+*.eggs/
 
 *.o
 *.so
