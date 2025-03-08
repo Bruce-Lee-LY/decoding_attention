@@ -21,23 +21,20 @@ import matplotlib.pyplot as plt
 def process_type(path):
     dim_idx = 0
     data_type = ''
-    y_step = 1
     x_label = ''
 
     if 'decoding_seq' in path:
         dim_idx = 3
         data_type = 'decoding_seq'
-        y_step = 1
         x_label = 'Seq Len'
     elif 'decoding_batch' in path:
         dim_idx = 1
         data_type = 'decoding_batch'
-        y_step = 1
         x_label = 'Batch Size'
     else:
         raise TypeError('Unsupported data type')
 
-    return dim_idx, data_type, y_step, x_label
+    return dim_idx, data_type, x_label
 
 
 def get_methods(log_file):
@@ -67,8 +64,10 @@ def get_dims(log_files, dim_idx):
 
 
 def read_data(methods, dims, data_path, log_files, dim_idx):
-    data_throughput = np.zeros((len(methods), len(dims)), np.float64)
-    data_performance = np.zeros((len(methods), len(dims)), np.float64)
+    throughputs = np.zeros((len(methods), len(dims)), np.float64)
+    throughputs_performance = np.zeros((len(methods), len(dims)), np.float64)
+    bandwidths = np.zeros((len(methods), len(dims)), np.float64)
+    bandwidths_performance = np.zeros((len(methods), len(dims)), np.float64)
 
     for log_file in log_files:
         dim = int((log_file.split('.')[0]).split('_')[dim_idx])
@@ -78,14 +77,17 @@ def read_data(methods, dims, data_path, log_files, dim_idx):
                 if 'exit' in line and 'Naive' not in line:
                     iterms = line.split(' ')
                     method = iterms[6]
-                    data_throughput[methods.index(
+                    throughputs[methods.index(
                         method)][dims.index(dim)] = float(iterms[14])
-                    data_performance[methods.index(method)][dims.index(dim)] = float(
-                        iterms[16].replace('(', '').replace(')', '').replace('%', ''))
-
+                    throughputs_performance[methods.index(method)][dims.index(dim)] = float(
+                        iterms[16].replace('(', '').replace(')', '').replace('%', '').replace(',', ''))
+                    bandwidths[methods.index(
+                        method)][dims.index(dim)] = float(iterms[18])
+                    bandwidths_performance[methods.index(method)][dims.index(dim)] = float(
+                        iterms[20].replace('(', '').replace(')', '').replace('%', '').replace(',', ''))
                 line = fp.readline()
 
-    return data_throughput, data_performance
+    return throughputs, throughputs_performance, bandwidths, bandwidths_performance
 
 
 def draw_line_chart(methods, dims, data, figure_name, y_step, x_label, y_label, title):
@@ -118,7 +120,7 @@ def draw_line_chart(methods, dims, data, figure_name, y_step, x_label, y_label, 
     # plt.show()
 
 
-def analyze_data(data_path, dim_idx, data_type, y_step, x_label):
+def analyze_data(data_path, dim_idx, data_type, x_label):
     log_files = []
     for file_name in os.listdir(data_path):
         if '.log' not in file_name:
@@ -128,12 +130,16 @@ def analyze_data(data_path, dim_idx, data_type, y_step, x_label):
 
     methods = get_methods(data_path + log_files[0])
     dims = get_dims(log_files, dim_idx)
-    data_throughput, data_performance = read_data(
+    throughputs, throughputs_performance, bandwidths, bandwidths_performance = read_data(
         methods, dims, data_path, log_files, dim_idx)
-    draw_line_chart(methods, dims, data_throughput, data_path + data_type +
-                    '_throughput.png', y_step, x_label, 'Throughput / TFLOPS', 'Decoding Attention Throughput')
-    draw_line_chart(methods, dims, data_performance, data_path + data_type + '_performance.png', y_step, x_label,
-                    'Performance Compared with Decoding Attention / %', 'Decoding Attention Performance')
+    draw_line_chart(methods, dims, throughputs, data_path + data_type +
+                    '_throughput.png', 1, x_label, 'Throughput / TFLOPS', 'Decoding Attention Throughput')
+    draw_line_chart(methods, dims, throughputs_performance, data_path + data_type + '_throughput_performance.png', 20, x_label,
+                    'Performance Compared with Decoding Attention / %', 'Decoding Attention Throughput Performance')
+    draw_line_chart(methods, dims, bandwidths, data_path + data_type +
+                    '_bandwidth.png', 2, x_label, 'Bandwidth / GB/s', 'Decoding Attention Bandwidth')
+    draw_line_chart(methods, dims, bandwidths_performance, data_path + data_type + '_bandwidth_performance.png', 20, x_label,
+                    'Performance Compared with Decoding Attention / %', 'Decoding Attention Bandwidth Performance')
 
 
 def main():
@@ -145,8 +151,8 @@ def main():
     options, args = parser.parse_args()
     path = options.path
 
-    dim_idx, data_type, y_step, x_label = process_type(path)
-    analyze_data(path, dim_idx, data_type, y_step, x_label)
+    dim_idx, data_type, x_label = process_type(path)
+    analyze_data(path, dim_idx, data_type, x_label)
 
 
 if __name__ == "__main__":
